@@ -134,4 +134,4 @@ npm run dev
 
 ---
 
-*Built with ❤️ by the Antigravity Team | 2026*
+*Built with ❤️ by the Tech Team | 2026*
