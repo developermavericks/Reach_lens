@@ -121,8 +121,7 @@ export class ReachEstimator {
             else if (entKeywords.some(r => r.test(title))) industryMultiplier = 1.5;
             else if (academicKeywords.some(r => r.test(title))) industryMultiplier = 0.7;
 
-            const analysis = sentiment.analyze(title);
-            const sentimentScore = analysis.score;
+            const sentimentScore = ReachEstimator.analyzeSentiment(title);
             let sentimentMultiplier = 1.0;
             if (sentimentScore < -1) sentimentMultiplier = 1.5; // Controversy
             else if (sentimentScore > 2) sentimentMultiplier = 1.2; // Highly Positive
@@ -329,7 +328,34 @@ export class ReachEstimator {
         };
     }
 
-    static analyzeSentiment(text: string): number {
-        return sentiment.analyze(text).score;
+    static analyzeSentiment(title: string, description?: string, snippet?: string): number {
+        // News-specific lexicon extensions
+        const customLexicon = {
+            'scandal': -4,
+            'lawsuit': -3,
+            'acquisition': 3,
+            'breakthrough': 4,
+            'exclusive': 2,
+            'layoff': -3,
+            'funding': 3,
+            'scam': -5,
+            'fraud': -5,
+            'ai': 1, // Generally positive in tech news
+            'revolutionary': 4,
+            'failed': -3,
+            'success': 3
+        };
+
+        const options = { extras: customLexicon };
+
+        const titleScore = sentiment.analyze(title, options).score;
+        const descScore = description ? sentiment.analyze(description, options).score : titleScore;
+        const snippetScore = snippet ? sentiment.analyze(snippet, options).score : descScore;
+
+        // Weighted Average: Title (60%), Description (30%), Snippet (10%)
+        // Title is weighted highest as it's the primary "hook"
+        const finalScore = (titleScore * 0.6) + (descScore * 0.3) + (snippetScore * 0.1);
+
+        return parseFloat(finalScore.toFixed(2));
     }
 }

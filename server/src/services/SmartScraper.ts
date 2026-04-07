@@ -31,6 +31,8 @@ export class SmartScraper {
         prominenceScore: number; // v3.0 Heat Map Score
         source: 'Direct' | 'Title' | 'Estimator';
         status: 'Success' | 'Blocked' | 'Fallback';
+        metaDescription?: string | undefined;
+        snippet?: string | undefined;
     }> {
 
         // Memory safety: Only allow one scrape at a time on limited free tiers
@@ -60,19 +62,24 @@ export class SmartScraper {
             await page.setUserAgent(ua);
             await page.setViewport({ width: 1920, height: 1080 });
 
-            // Attempt 1: Google Search for URL
+            // --- PHASE 1: Google Search for URL (Verification) ---
             const result1 = await this.searchGoogle(page, `"${url}"`);
 
             if (result1 && result1.count > 0) {
+                // --- PHASE 2: Direct Page Analysis (Content Extraction) ---
+                const meta = await this.scrapeDirectPage(page, url);
+                
                 await browser.close();
                 return {
-                    title: title || '',
+                    title: meta.title || title || '',
                     url,
                     totalMentions: result1.count,
                     domains: result1.domains,
                     prominenceScore: result1.avgRankScore,
                     source: 'Direct',
-                    status: 'Success'
+                    status: 'Success',
+                    metaDescription: meta.description,
+                    snippet: meta.snippet
                 };
             }
 
@@ -187,6 +194,39 @@ export class SmartScraper {
         } catch (e) {
             console.warn(`[SmartScraper] Search failed for ${query}: ${e}`);
             return null;
+        }
+    }
+
+    private async scrapeDirectPage(page: any, url: string): Promise<{ title?: string, description?: string, snippet?: string }> {
+        try {
+            console.log(`[SmartScraper] Visiting direct page: ${url}`);
+            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+            
+            const meta = await page.evaluate(() => {
+                const getMeta = (name: string) => {
+                    const el = document.querySelector(`meta[name="${name}"], meta[property="og:${name}"]`);
+                    return el ? (el as HTMLMetaElement).content : undefined;
+                };
+
+                const getSnippet = () => {
+                    // Try article first
+                    const article = document.querySelector('article, .article-content, .post-content');
+                    if (article) return article.textContent?.trim().slice(0, 1000);
+                    // Fallback to body
+                    return document.body.textContent?.trim().slice(0, 1000).replace(/\s+/g, ' ');
+                };
+
+                return {
+                    title: document.title,
+                    description: getMeta('description'),
+                    snippet: getSnippet()
+                };
+            });
+
+            return meta;
+        } catch (e) {
+            console.warn(`[SmartScraper] Direct scrape failed: ${e}`);
+            return {};
         }
     }
 }

@@ -90,9 +90,13 @@ export const analyzeUrl = async (req: Request, res: Response) => {
             // Stealth Formula
             estimatedReach = ((googleCount + redditCount) * baseVal * avgDomainWeight * positionalWeight) + indexingBonus;
 
-            // Sentiment (v4+)
-            if ((version === 'v4' || version === 'v5' || version === 'v6') && smartResult.title) {
-                sentimentScore = ReachEstimator.analyzeSentiment(smartResult.title);
+            // Sentiment (v4+) - Weighted Analysis
+            if ((version === 'v4' || version === 'v5' || version === 'v6')) {
+                sentimentScore = ReachEstimator.analyzeSentiment(
+                    smartResult.title || '', 
+                    smartResult.metaDescription, 
+                    smartResult.snippet
+                );
             }
         }
 
