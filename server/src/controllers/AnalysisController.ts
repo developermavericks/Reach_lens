@@ -101,10 +101,18 @@ export const analyzeUrl = async (req: Request, res: Response) => {
         }
 
         // --- Universal Modifiers (Versioned) ---
-        const modifiers = ReachEstimator.applyModifiers(estimatedReach, version, new Date(), smartResult.domains, smartResult);
+        // v8.0: Identify if this is likely a reprint
+        const isTargetDomainInTopResults = smartResult.domains.slice(0, 2).some(d => url.includes(d));
+        const isReprint = !isTargetDomainInTopResults && smartResult.domains.length > 0;
+
+        const modifiers = ReachEstimator.applyModifiers(estimatedReach, version, new Date(), smartResult.domains, {
+            ...smartResult,
+            isReprint
+        });
         estimatedReach = modifiers.finalReach;
         const velocity = modifiers.velocity;
         const agenticStatus = modifiers.agenticStatus;
+        const deviation = (modifiers as any).deviation;
 
         // Save to DB - REMOVED for stateless deployment
         /*
@@ -149,7 +157,9 @@ export const analyzeUrl = async (req: Request, res: Response) => {
                     logic: getVersionName(version),
                     uv: uv || (modifiers as any).uv || undefined,
                     upv: upv || (modifiers as any).upv || undefined,
-                    socialProof: smartResult.socialProof
+                    socialProof: smartResult.socialProof,
+                    deviation: deviation,
+                    isReprint: isReprint
                 }
             }
         });
