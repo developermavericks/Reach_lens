@@ -101,18 +101,39 @@ export const analyzeUrl = async (req: Request, res: Response) => {
         }
 
         // --- Universal Modifiers (Versioned) ---
-        // v8.0: Identify if this is likely a reprint
-        const isTargetDomainInTopResults = smartResult.domains.slice(0, 2).some(d => url.includes(d));
-        const isReprint = !isTargetDomainInTopResults && smartResult.domains.length > 0;
+
+        // v9.0: Content Provenance Graph (CPG) & 5-Tier Classification
+        let provenanceTier = 'T0';
+        if (version === 'v9') {
+            const topDomains = smartResult.domains.slice(0, 5);
+            const targetDomain = new URL(url).hostname.replace('www.', '');
+            const isTargetInTop3 = topDomains.slice(0, 3).some(d => targetDomain.includes(d));
+            
+            if (isTargetInTop3) {
+                provenanceTier = 'T0'; // Origin
+            } else if (topDomains.some(d => d.includes('msn.com') || d.includes('yahoo.com') || d.includes('apnews.com') || d.includes('reuters.com'))) {
+                provenanceTier = 'T1'; // Licensed Syndication
+            } else if (topDomains.length > 0) {
+                provenanceTier = 'T2'; // Indexed Reprint
+            } else {
+                provenanceTier = 'T3'; // Probable Scraper/Thin
+            }
+        }
+
+        // v8.0/v9.0 integration for reprint flag
+        const isReprint = provenanceTier !== 'T0';
 
         const modifiers = ReachEstimator.applyModifiers(estimatedReach, version, new Date(), smartResult.domains, {
             ...smartResult,
-            isReprint
+            isReprint,
+            provenanceTier,
+            url
         });
         estimatedReach = modifiers.finalReach;
         const velocity = modifiers.velocity;
         const agenticStatus = modifiers.agenticStatus;
         const deviation = (modifiers as any).deviation;
+        const uvr = (modifiers as any).uv; // v9 UVR (Unique Verified Reach)
 
         // Save to DB - REMOVED for stateless deployment
         /*
@@ -155,11 +176,13 @@ export const analyzeUrl = async (req: Request, res: Response) => {
                 meta: {
                     agenticStatus: agenticStatus,
                     logic: getVersionName(version),
-                    uv: uv || (modifiers as any).uv || undefined,
-                    upv: upv || (modifiers as any).upv || undefined,
+                    uv: uvr || uv || (modifiers as any).uv || undefined,
+                    upv: (modifiers as any).upv || undefined,
                     socialProof: smartResult.socialProof,
                     deviation: deviation,
-                    isReprint: isReprint
+                    isReprint: isReprint,
+                    provenanceTier: provenanceTier,
+                    entropy: (modifiers as any).entropy || undefined
                 }
             }
         });
