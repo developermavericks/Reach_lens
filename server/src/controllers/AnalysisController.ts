@@ -2,7 +2,8 @@ import type { Request, Response } from 'express';
 import { SmartScraper } from '../services/SmartScraper.js';
 import { SocialScraperService } from '../services/SocialScraperService.js';
 import { ReachEstimator } from '../services/ReachEstimator.js';
-import db from '../db.js';
+// import db from '../db.js'; // Removed for stateless deployment
+
 
 const smartScraper = new SmartScraper();
 const socialScraper = new SocialScraperService();
@@ -101,7 +102,8 @@ export const analyzeUrl = async (req: Request, res: Response) => {
         const velocity = modifiers.velocity;
         const agenticStatus = modifiers.agenticStatus;
 
-        // Save to DB
+        // Save to DB - REMOVED for stateless deployment
+        /*
         const stmt = db.prepare(`
           INSERT INTO snapshots (target_url, total_mentions, google_mentions, reddit_mentions, raw_data)
           VALUES (?, ?, ?, ?, ?)
@@ -121,9 +123,12 @@ export const analyzeUrl = async (req: Request, res: Response) => {
                 sentiment: sentimentScore
             })
         );
+        */
+
 
         res.json({
-            id: info.lastInsertRowid,
+            id: Math.floor(Math.random() * 1000000), // Random ID for stateless response
+
             url,
             totalMentions,
             estimatedReach,
