@@ -9,6 +9,7 @@ const puppeteerExtra = (puppeteer as any).default || puppeteer;
 puppeteerExtra.use(StealthPlugin());
 
 export class SmartScraper {
+    private isProcessing = false; // Simple lock for Render memory safety
 
     // Random delay between 2-5 seconds
     private async delay(min = 2000, max = 5000) {
@@ -32,11 +33,18 @@ export class SmartScraper {
         status: 'Success' | 'Blocked' | 'Fallback';
     }> {
 
+        // Memory safety: Only allow one scrape at a time on limited free tiers
+        while (this.isProcessing) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        this.isProcessing = true;
         let browser;
         try {
             console.log(`[SmartScraper] Launching stealth browser for ${url}`);
             browser = await (puppeteerExtra as any).launch({
                 headless: true,
+                executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
@@ -111,6 +119,8 @@ export class SmartScraper {
                 source: 'Estimator',
                 status: 'Fallback'
             };
+        } finally {
+            this.isProcessing = false; // Always release the lock
         }
     }
 
