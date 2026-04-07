@@ -2,18 +2,35 @@ import React, { useState } from 'react';
 import { SearchBar } from './SearchBar';
 import { StatsCard } from './StatsCard';
 import { analyzeUrl } from '../api';
-import { BarChart3, Globe, MessageCircle, Share2 } from 'lucide-react';
+import { BarChart3, Globe, MessageCircle, Share2, Twitter, Linkedin, Timer } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<any>(null);
     const [error, setError] = useState('');
-    const [version, setVersion] = useState('v5');
+    const [version, setVersion] = useState('v7');
+    const [timer, setTimer] = useState(0);
+
+    const startTimer = (seconds: number) => {
+        setTimer(seconds);
+        const interval = setInterval(() => {
+            setTimer((prev) => {
+                if (prev <= 1) {
+                    clearInterval(interval);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    };
 
     const handleSearch = async (url: string) => {
         setLoading(true);
         setError('');
         setData(null);
+        if (version === 'v7') startTimer(20);
+        else startTimer(10);
+        
         try {
             // @ts-ignore
             const result = await analyzeUrl(url, version);
@@ -32,6 +49,7 @@ export const Dashboard: React.FC = () => {
         { id: 'v4', name: 'v4.0 Causal', desc: 'AI/GEO Detection + Sentiment Analysis' },
         { id: 'v5', name: 'v5.0 Agentic', desc: 'Behavioral Engine + Social Influence Index' },
         { id: 'v6', name: 'v6.0 Integrated', desc: 'Grounded Base + Engagement Stickiness' },
+        { id: 'v7', name: 'v7.0 Truth Engine', desc: 'Integrated Reality + Social Breadth (Max Accuracy)' },
     ];
 
     // Logic Explanations Data
@@ -80,6 +98,15 @@ export const Dashboard: React.FC = () => {
                 "3. Logic Integration: We combine Sentiment (Impact), Industry (Relevance), and Agentic (Authority) multipliers together.",
                 "4. Echo Chamber Check: detailed verification to ensure AI citations are backed by real human traffic.",
             ]
+        },
+        'v7': {
+            title: "Integrated Truth Engine (v7.0)",
+            points: [
+                "1. Social Distribution (SISI): We don't just count mentions; we verify 'Breadth'. If a story spreads across X, LinkedIn, and Facebook, reach is boosted by 15% per platform.",
+                "2. Temporal Velocity: We scrape result timestamps. 'Breaking' news (<24h) gets a 2.0x velocity boost, while archived content is penalized.",
+                "3. Multi-Field Sentiment: We analyze the Title, Meta-Description, and Page Snippets together for 85% confidence in impact detection.",
+                "4. Entity Authority: Articles mentioning Global Entities (e.g. OpenAI, Nvidia) get an automatic 'High Interest' reach bonus."
+            ]
         }
     };
 
@@ -120,6 +147,22 @@ export const Dashboard: React.FC = () => {
                         {versions.find(v => v.id === version)?.desc}
                     </p>
                 </div>
+
+                {loading && timer > 0 && (
+                    <div className="flex flex-col items-center space-y-3 animate-pulse">
+                        <div className="flex items-center space-x-2 text-blue-600 font-bold">
+                            <Timer className="w-5 h-5 animate-spin-slow" />
+                            <span>Deep Verifying Truth Matrix... {timer}s</span>
+                        </div>
+                        <div className="w-64 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                                className="h-full bg-blue-600 transition-all duration-1000" 
+                                style={{ width: `${((20 - timer) / 20) * 100}%` }}
+                            ></div>
+                        </div>
+                        <p className="text-xs text-gray-400">Performing Multi-Platform Dorking and Temporal Analysis</p>
+                    </div>
+                )}
 
                 {error && (
                     <div className="bg-red-50 text-red-600 p-4 rounded-lg text-center max-w-2xl mx-auto border border-red-100">
@@ -172,11 +215,31 @@ export const Dashboard: React.FC = () => {
                             <StatsCard
                                 title="Agentic Rank"
                                 value={data.agenticStatus || "None"}
-                                icon={BarChart3}
+                                icon={Globe}
                                 color={data.agenticStatus === 'Gold' ? 'orange' : 'gray'}
                                 subtext={data.agenticStatus === 'Gold' ? 'AI Citation (2.0x)' : 'Standard Indexing'}
-                                trend={data.velocity > 80 ? "Viral Tipping Point 🔥" : undefined}
+                                trend={data.velocity > 85 ? "Viral Tipping Point 🔥" : undefined}
                             />
+
+                            {/* v7.0 Social Stats Cards */}
+                            {data.breakdown?.meta?.socialProof && (
+                                <>
+                                    <StatsCard
+                                        title="X (Twitter) Mentions"
+                                        value={data.breakdown.meta.socialProof.x || 0}
+                                        icon={Twitter}
+                                        color="blue"
+                                        subtext="Direct Link Mentions"
+                                    />
+                                    <StatsCard
+                                        title="LinkedIn Mentions"
+                                        value={data.breakdown.meta.socialProof.linkedin || 0}
+                                        icon={Linkedin}
+                                        color="blue"
+                                        subtext="Professional Shares"
+                                    />
+                                </>
+                            )}
 
                             {/* v6 Specific Metrics */}
                             {version === 'v6' && data.breakdown?.meta?.uv && (

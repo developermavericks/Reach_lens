@@ -33,6 +33,13 @@ export class SmartScraper {
         status: 'Success' | 'Blocked' | 'Fallback';
         metaDescription?: string | undefined;
         snippet?: string | undefined;
+        socialProof?: {
+            x?: number;
+            linkedin?: number;
+            reddit?: number;
+            facebook?: number;
+        };
+        temporalLog?: string[]; // Raw date strings for velocity
     }> {
 
         // Memory safety: Only allow one scrape at a time on limited free tiers
@@ -68,6 +75,9 @@ export class SmartScraper {
             if (result1 && result1.count > 0) {
                 // --- PHASE 2: Direct Page Analysis (Content Extraction) ---
                 const meta = await this.scrapeDirectPage(page, url);
+
+                // --- PHASE 3: Social Proof Analysis (V7.0 Multi-Platform) ---
+                const social = await this.scrapeSocialMentions(url, page);
                 
                 await browser.close();
                 return {
@@ -79,7 +89,12 @@ export class SmartScraper {
                     source: 'Direct',
                     status: 'Success',
                     metaDescription: meta.description,
-                    snippet: meta.snippet
+                    snippet: meta.snippet,
+                    socialProof: {
+                        ...social,
+                        reddit: result1.domains.filter(d => d.includes('reddit.com')).length // Heuristic if reddit API fails
+                    },
+                    temporalLog: result1.dates
                 };
             }
 
@@ -131,7 +146,7 @@ export class SmartScraper {
         }
     }
 
-    private async searchGoogle(page: any, query: string): Promise<{ count: number, domains: string[], avgRankScore: number } | null> {
+    private async searchGoogle(page: any, query: string): Promise<{ count: number, domains: string[], avgRankScore: number, dates: string[] } | null> {
         try {
             const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
             await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -182,19 +197,57 @@ export class SmartScraper {
                 const match = text.match(/([\d,]+)/);
                 if (match) {
                     const count = parseInt(match[1].replace(/,/g, ''), 10);
-                    return { count, domains: uniqueDomains, avgRankScore };
+                    
+                    // v7.0: Extract Dates for Temporal Velocity
+                    const dates = await page.evaluate(() => {
+                        const dateSpans = Array.from(document.querySelectorAll('.f, .LE0U9e, .MU91fe'));
+                        return dateSpans.map(s => (s as HTMLSpanElement).innerText.trim()).filter(t => t.length > 0);
+                    });
+
+                    return { count, domains: uniqueDomains, avgRankScore, dates };
                 }
             }
 
             // Alternative count
             const results = await page.$$('.g');
-            if (results.length > 0) return { count: results.length, domains: uniqueDomains, avgRankScore };
+            if (results.length > 0) return { count: results.length, domains: uniqueDomains, avgRankScore, dates: [] };
 
-            return { count: 0, domains: [], avgRankScore: 0 };
+            return { count: 0, domains: [], avgRankScore: 0, dates: [] };
         } catch (e) {
             console.warn(`[SmartScraper] Search failed for ${query}: ${e}`);
             return null;
         }
+    }
+
+    async scrapeSocialMentions(url: string, page: any): Promise<{ x: number, linkedin: number, facebook: number }> {
+        const platforms = [
+            { name: 'x', query: `site:x.com OR site:twitter.com "${url}"` },
+            { name: 'linkedin', query: `site:linkedin.com "${url}"` },
+            { name: 'facebook', query: `site:facebook.com "${url}"` }
+        ];
+
+        const results: any = { x: 0, linkedin: 0, facebook: 0 };
+
+        for (const p of platforms) {
+            console.log(`[SmartScraper] Dorking ${p.name}: ${p.query}`);
+            const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(p.query)}`;
+            try {
+                await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+                const statsHandle = await page.$('#result-stats');
+                if (statsHandle) {
+                    const text = await page.evaluate((el: any) => el.innerText, statsHandle);
+                    const match = text.match(/([\d,]+)/);
+                    if (match) {
+                        results[p.name] = parseInt(match[1].replace(/,/g, ''), 10);
+                    }
+                }
+                await this.delay(1000, 2000); // Buffer to avoid Google block
+            } catch (e) {
+                console.warn(`[SmartScraper] Social dork for ${p.name} failed: ${e}`);
+            }
+        }
+
+        return results;
     }
 
     private async scrapeDirectPage(page: any, url: string): Promise<{ title?: string, description?: string, snippet?: string }> {

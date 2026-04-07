@@ -41,7 +41,7 @@ export const analyzeUrl = async (req: Request, res: Response) => {
 
         if (smartResult.source === 'Estimator') {
             // CORE 2: The "Estimator" Path
-            const estimate = ReachEstimator.estimate(url, smartResult.title || '', version);
+            const estimate = ReachEstimator.estimate(url, smartResult.title || '', version, smartResult);
             estimatedReach = estimate.reach;
             confidenceScore = estimate.confidence;
             sentimentScore = estimate.sentimentScore;
@@ -101,7 +101,7 @@ export const analyzeUrl = async (req: Request, res: Response) => {
         }
 
         // --- Universal Modifiers (Versioned) ---
-        const modifiers = ReachEstimator.applyModifiers(estimatedReach, version, new Date(), smartResult.domains);
+        const modifiers = ReachEstimator.applyModifiers(estimatedReach, version, new Date(), smartResult.domains, smartResult);
         estimatedReach = modifiers.finalReach;
         const velocity = modifiers.velocity;
         const agenticStatus = modifiers.agenticStatus;
@@ -145,14 +145,11 @@ export const analyzeUrl = async (req: Request, res: Response) => {
                 google: { ...smartResult, totalMentions: googleCount },
                 reddit: redditResult,
                 meta: {
-                    source: smartResult.source,
-                    confidence: confidenceScore,
-                    sentiment: sentimentScore,
-                    velocity: velocity,
                     agenticStatus: agenticStatus,
                     logic: getVersionName(version),
-                    uv: uv || undefined,
-                    upv: upv || undefined
+                    uv: uv || (modifiers as any).uv || undefined,
+                    upv: upv || (modifiers as any).upv || undefined,
+                    socialProof: smartResult.socialProof
                 }
             }
         });
