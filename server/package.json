@@ -7,6 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon",
     "build": "tsc",
+    "build:render": "chmod +x render-build.sh && ./render-build.sh",
     "start": "node dist/index.js"
   },
   "keywords": [],
